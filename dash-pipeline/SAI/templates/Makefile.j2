@@ -2,6 +2,10 @@
 # THIS MAKEFILE IS AUTO-GENERATED FROM templates/Makefile.j2
 # DO NOT MODIFY
 
+.ONESHELL:
+SHELL = /bin/bash
+.SHELLFLAGS += -e
+
 # Sources from OCP SAI Repo:
 SAI_DIR=../SAI/meta/
 SAI_SRCS=saimetadatautils.c \
@@ -49,3 +53,86 @@ libsai.so: $(DASH_FIXED_SAI_SRCS) $(DASH_GEN_SAI_SRCS)
 	    $(DASH_FIXED_SAI_OBJ) \
 	    $(DASH_GEN_SAI_OBJ) \
 		$(SAI_OBJS)
+
+libprotobuf:
+	git clone --depth=1 -b v3.18.1 https://github.com/google/protobuf.git
+	pushd ./protobuf
+	./autogen.sh
+	./configure
+	make -j
+	sudo make install
+	sudo ldconfig
+	popd
+
+libgrpc:
+	git clone --depth=1 -b v1.43.2 https://github.com/google/grpc.git
+	pushd ./grpc
+	git submodule update --init --recursive
+	mkdir -p cmake/build
+	pushd ./cmake/build
+	cmake -DgRPC_INSTALL=ON -DgRPC_BUILD_TESTS=OFF -DBUILD_SHARED_LIBS=ON ../..
+	make -j
+	sudo make install
+	sudo ldconfig
+	popd
+	popd
+
+libbm:
+	git clone https://github.com/p4lang/behavioral-model.git
+	pushd ./behavioral-model
+	git checkout 9417f2d742cc9325c09e4a222a9b0702d0ce656a
+	apt install -y composer
+	bash ci/install-thrift.sh
+	bash ci/install-nanomsg.sh
+	sudo ldconfig
+	./autogen.sh
+	./configure
+	make -j
+	sudo make install
+	popd
+
+libpi: libprotobuf libgrpc libbm
+	git clone https://github.com/p4lang/PI.git
+	pushd ./PI
+	git checkout 21592d61b314ba0c44a7409a733dbf9e46da6556
+	git submodule update --init --recursive
+	./autogen.sh
+	./configure --with-proto --with-bmv2
+	make -j
+	make check
+	sudo make install
+	popd
+
+libsai-dash.so: libpi libgrpc $(DASH_FIXED_SAI_SRCS) $(DASH_GEN_SAI_SRCS)
+	g++ \
+		-fpermissive \
+		-c \
+		-I ../SAI/meta/ \
+		-I ../SAI/inc/ \
+		-I ../SAI/experimental/ \
+		-fPIC \
+		-g \
+		$(GXX_FLAGS) \
+		$(DASH_FIXED_SAI_SRCS) \
+		$(DASH_GEN_SAI_SRCS)
+
+	g++ \
+		-shared \
+		-g \
+		-o libsai-dash.so \
+		-lpiprotogrpc \
+		-lgrpc++ \
+		$(DASH_FIXED_SAI_OBJ) \
+		$(DASH_GEN_SAI_OBJ)
+
+INSTALL_DIR:=/usr/lib/libsai-dash
+CONF_DIR:=/etc/dash
+
+install:
+	sudo mkdir -p $(DESTDIR)/$(INSTALL_DIR)
+	sudo cp libsai-dash.so $(DESTDIR)/$(INSTALL_DIR)
+	cp $(shell ldd libsai-dash.so | awk '{print $$3}' | grep /usr/local) $(DESTDIR)/$(INSTALL_DIR)
+	find $(DESTDIR)/$(INSTALL_DIR) -name '*.so*' -exec patchelf --set-rpath $(INSTALL_DIR) {} \;
+	sudo mkdir -p $(DESTDIR)/$(CONF_DIR)
+	sudo cp dash_pipeline_p4rt.txt $(DESTDIR)/$(CONF_DIR)
+	sudo cp dash_pipeline_p4rt.json $(DESTDIR)$(CONF_DIR)
