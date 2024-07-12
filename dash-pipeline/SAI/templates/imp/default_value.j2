@@ -1,0 +1,77 @@
+    // Set default value block
+    {
+        {% for sai_attr in table.sai_attributes %}
+
+        /**
+        * Set default value for SAI_{{ table.name | upper }}_ATTR_{{ sai_attr.name | upper }}
+        */
+        do {
+
+            // attribute already exists on current attribute list
+            if (std::find_if(attrs.begin(), attrs.end(), [](const sai_attribute_t &attr) {
+                return attr.id == SAI_{{ table.name | upper }}_ATTR_{{ sai_attr.name | upper }};
+                }) != attrs.end())
+            {
+                break;
+            }
+
+            // conditional attributes should be populated by user
+
+            {% if sai_attr.isreadonly == 'true' %}
+                // can't be read only
+                break;
+            {% endif %}
+
+            // can't be mandatory on create
+
+            // there is no default value
+
+            // is valid only
+            {% if table.actions | length > 1 %}
+            {% if sai_attr.param_actions | length == 0 %}
+            // always set default attribute in this case, even if condition is not set
+            // (see github discussion https://github.com/sonic-net/DASH/pull/547)
+            {% else %}
+            bool match_action = false;
+            auto action_itr = find_if(attrs.begin(), attrs.end(), [](const sai_attribute_t &attr) {
+                return attr.id == SAI_{{ table.name | upper }}_ATTR_ACTION;
+            });
+            sai_int32_t action_value = SAI_{{ table.name | upper }}_ACTION_{{ table.actions[0].name | upper }};
+            if (action_itr != attrs.end())
+            {
+                action_value = action_itr->value.s32;
+            }
+            {% for action in sai_attr.param_actions %}
+            match_action |= action_value == SAI_{{ table.name | upper }}_ACTION_{{ action | upper }};
+            {% endfor %}
+            if (!match_action)
+            {
+                break;
+            }
+            {% endif %}
+            {% endif %}
+
+            // set default value
+            {% if sai_attr.default is defined %}
+            sai_attribute_t a = {};
+            a.id = SAI_{{ table.name | upper }}_ATTR_{{ sai_attr.name | upper }};
+            {% if sai_attr.default and sai_attr.default != "empty" %}
+            {% if sai_attr.type == "sai_ip_address_t" %}
+            sai_deserialize_ip_address("{{ sai_attr.default }}", &a.value.ipaddr);
+            {% elif sai_attr.type == "sai_uint32_t" %}
+            a.value.u32 = {{ sai_attr.default }};
+            {% elif sai_attr.default == "vendor" %}
+            // Hardcode vendor to zero
+            {% else %}
+            a.value.s32 = {{ sai_attr.default }};
+            {% endif %}
+            {% endif %}
+            DASH_LOG_NOTICE("adding SAI_{{ table.name | upper }}_ATTR_{{ sai_attr.name | upper }} with default value");
+            attrs.push_back(a);
+            break;
+            {% endif %}
+
+        } while(0);
+
+        {% endfor %}
+    }

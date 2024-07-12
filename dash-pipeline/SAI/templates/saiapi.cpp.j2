@@ -1,11 +1,18 @@
 #include "utils.h"
 #include "saiimpl.h"
+#include "default_value.h"
 
 extern "C" {
 #include "saimetadata.h"
 }
 
 using namespace dash::utils;
+
+{% for table in tables %}
+{% for action in table.actions %}
+{% include 'templates/imp/default_value_define.j2' %}
+{% endfor %}
+{% endfor %}
 
 {% set registered_group = [] %}
 {% for table in tables %}
@@ -162,6 +169,7 @@ static sai_status_t dash_sai_create_{{ table.name }}(
     {% for action in table.actions %}
     actionId = {{action.id}}; // SAI_{{ table.name | upper }}_ACTION_{{ action.name | upper }}
     //expectedParams = {{ action.params|length }};
+    {% include 'templates/imp/default_value_merge.j2' %}
     {% endfor %}
     {% else %}
     // Search the action
@@ -176,6 +184,7 @@ static sai_status_t dash_sai_create_{{ table.name }}(
                 {
                     actionId = {{action.id}};
                     //expectedParams = {{ action.params|length }};
+                    {% include 'templates/imp/default_value_merge.j2' %}
                     break;
                 }
                 {% endfor %}
@@ -462,6 +471,7 @@ static sai_status_t dash_sai_create_{{ table.name }}(
     {% for action in table.actions %}
     actionId = {{action.id}}; // SAI_{{ table.name | upper }}_ACTION_{{ action.name | upper }}
     //expectedParams = {{ action.params|length }};
+    {% include 'templates/imp/default_value_merge.j2' %}
     {% endfor %}
     {% else %}
     // Search the action
@@ -476,6 +486,7 @@ static sai_status_t dash_sai_create_{{ table.name }}(
                 {
                     actionId = {{action.id}};
                     //expectedParams = {{ action.params|length }};
+                    {% include 'templates/imp/default_value_merge.j2' %}
                     break;
                 }
                 {% endfor %}

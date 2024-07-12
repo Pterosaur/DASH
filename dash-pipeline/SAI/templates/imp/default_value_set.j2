@@ -1,0 +1,18 @@
+// set default value
+{% if sai_attr.default is defined %}
+sai_attribute_t a = {};
+a.id = SAI_{{ table.name | upper }}_ATTR_{{ sai_attr.name | upper }};
+{% if sai_attr.default and sai_attr.default != "empty" %}
+{% if sai_attr.type == "sai_ip_address_t" %}
+sai_deserialize_ip_address("{{ sai_attr.default }}", &a.value.ipaddr);
+{% elif sai_attr.type == "sai_uint32_t" %}
+a.value.u32 = {{ sai_attr.default }};
+{% elif sai_attr.default == "vendor" %}
+// Hardcode vendor to zero
+{% else %}
+a.value.s32 = {{ sai_attr.default }};
+{% endif %}
+{% endif %}
+DASH_LOG_NOTICE("adding SAI_{{ table.name | upper }}_ATTR_{{ sai_attr.name | upper }} with default value");
+attrs.push_back(a);
+{% endif %}

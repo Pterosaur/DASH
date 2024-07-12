@@ -1,0 +1,21 @@
+
+// SAI_{{ table.name | upper }}_ACTION_{{ action.name | upper }}
+
+static std::vector<sai_attribute_t> set_default_{{ table.name }}_{{ action.name }}_attributes() {
+    std::vector<sai_attribute_t> attrs;
+
+    {% for sai_attr in table.sai_attributes %}
+    {% if sai_attr.param_actions | length == 0 or action.name in sai_attr.param_actions %}
+    {
+        {% include 'templates/imp/default_value_set.j2' %}
+    }
+    {% endif %}
+    {% endfor %}
+
+    return attrs;
+}
+
+static const std::vector<sai_attribute_t>& get_default_{{ table.name }}_{{ action.name }}_attributes() {
+    static const std::vector<sai_attribute_t> attrs = set_default_{{ table.name }}_{{ action.name }}_attributes();
+    return attrs;
+}
